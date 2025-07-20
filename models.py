@@ -1,5 +1,5 @@
 from sqlalchemy.orm import DeclarativeBase, relationship
-from sqlalchemy import  Column, Integer, String, Text, DateTime, Boolean, ForeignKey, create_engine
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, create_engine
 from datetime import datetime
 
 
@@ -26,6 +26,16 @@ class Task(Base):
     is_completed = Column(Boolean, default=False)
     user_id = Column(Integer, ForeignKey("users.id"))
     user = relationship("User", back_populates="tasks")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "title": self.title,
+            "description": self.description,
+            "due_date": self.due_date,
+            "is_completed": self.is_completed,
+            "user_id": self.user_id
+        }
 
 
 class KnowledgeItem(Base):

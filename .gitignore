@@ -1,4 +1,6 @@
 __pycache__
 .idea
 .venv
+venv/
 sql_app.db
+test.py

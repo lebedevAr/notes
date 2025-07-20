@@ -1,8 +1,6 @@
 from sqlalchemy import create_engine
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import sessionmaker
 from models import User, Task
 from datetime import datetime
@@ -22,6 +20,7 @@ db = SessionLocal()
 def get_all_users():
     users = db.query(User).all()
     return users
+
 
 def get_all_tasks():
     tasks = db.query(Task).all()
@@ -55,21 +54,89 @@ def create_user(user_name: str, email: str, password: str):
             detail=f"Server error: {str(e)}"
         )
 
-def get_user_tasks(user_id):
+
+def get_user_tasks(user_id: int):
+    if not isinstance(user_id, int) or user_id <= 0:
+        raise HTTPException(400, "Invalid user_id format")
+
     tasks = db.query(Task).filter(Task.user_id == user_id).all()
     return tasks
 
 
+def add_new_task(user_id: int, title: str, desc: str, due_date: str):
+    if not all([user_id, title, due_date]):
+        raise HTTPException(400, "Missing required fields")
 
-def add_new_task(user_id, title, desc, due_date):
-    due_date_red = datetime.strptime(due_date, "%d.%m.%Y")
-    new_task = Task(title=title, description=desc, due_date=due_date_red, user_id=user_id)
-    db.add(new_task)
+    if not isinstance(user_id, int) or user_id <= 0:
+        raise HTTPException(400, "Invalid user_id format")
+
+    try:
+        due_date_parsed = datetime.strptime(due_date, "%d.%m.%Y")
+        if due_date_parsed < datetime.now():
+            raise HTTPException(400, "Due date cannot be in the past")
+    except ValueError:
+        raise HTTPException(400, "Invalid date format. Use DD.MM.YYYY")
+
+    try:
+        new_task = Task(
+            title=title,
+            description=desc,
+            due_date=due_date_parsed,
+            user_id=user_id
+        )
+        db.add(new_task)
+        db.commit()
+        return {"status": "success", "task_id": new_task.id}
+
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(400, "Database integrity error")
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, f"Server error: {str(e)}")
+
+
+def update_task(task_id: int, upd_field_title: str, upd_field_desc: str, upd_due_date):
+    if not isinstance(task_id, int) or task_id <= 0:
+        raise HTTPException(400, "Invalid task_id format")
+
+    old_task = db.query(Task).filter(Task.id == task_id).first()
+
+    if len(upd_due_date) > 0:
+        try:
+            due_date_parsed = datetime.strptime(upd_due_date, "%d.%m.%Y")
+            if due_date_parsed < datetime.now():
+                raise HTTPException(400, "Due date cannot be in the past")
+            if old_task.due_date != due_date_parsed:
+                old_task.due_date = due_date_parsed
+        except ValueError:
+            raise HTTPException(400, "Invalid date format. Use DD.MM.YYYY")
+
+    if len(upd_field_title) > 0 and old_task.title != upd_field_title:
+        old_task.title = upd_field_title
+    if len(upd_field_desc) > 0 and old_task.description != upd_field_desc:
+        old_task.description = upd_field_desc
+
     db.commit()
-    return True
+    return {"status": "success updated", "task_id": task_id}
 
-def update_task(user_id, task_id, upd_field_title, upd_field_desc, upd_due_date):
-    pass
 
-def delete_task(user_id, task_id):
-    pass
+def close_task(task_id: int):
+    if not isinstance(task_id, int) or task_id <= 0:
+        raise HTTPException(400, "Invalid task_id format")
+
+    task = db.query(Task).filter(Task.id == task_id).first()
+    task.is_completed = True
+    db.commit()
+    return {"status": "success closed", "task_id": task_id}
+
+
+def delete_task(task_id: int):
+    if not isinstance(task_id, int) or task_id <= 0:
+        raise HTTPException(400, "Invalid task_id format")
+
+    task = db.query(Task).filter(Task.id == task_id).first()
+    db.delete(task)
+    db.commit()
+    return {"status": "success deleted", "task_id": task_id}

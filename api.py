@@ -41,12 +41,10 @@ def update_task_endpoint(data=Body()):
     return update_task(data['task_id'], data['title'], data['desc'], data['due_date'])
 
 
-@app.put("/api/close_task")
-def close_task_endpoint(data=Body()):
-    return close_task(data["task_id"])
+def close_task_endpoint(task_id: int):
+    return close_task(task_id)
 
 
 @app.delete("/api/delete_task/{task_id}")
 def delete_task_endpoint(task_id: int):
     return delete_task(task_id)
-

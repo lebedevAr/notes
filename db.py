@@ -1,30 +1,27 @@
-from sqlalchemy import create_engine
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
-from models import User, Task
+from models import User, Task, engine
 from datetime import datetime
-
-# строка подключения
-SQLALCHEMY_DATABASE_URL = "sqlite:///./sql_app.db"
-
-# создаем движок SqlAlchemy
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
 
 SessionLocal = sessionmaker(autoflush=False, bind=engine)
 db = SessionLocal()
 
 
 def get_all_users():
-    users = db.query(User).all()
-    return users
+    try:
+        users = db.query(User).all()
+        return users
+    except Exception as e:
+        raise HTTPException(500, f"Something went wrong: {e}")
 
 
 def get_all_tasks():
-    tasks = db.query(Task).all()
-    return tasks
+    try:
+        tasks = db.query(Task).all()
+        return tasks
+    except Exception as e:
+        raise HTTPException(500, f"Something went wrong: {e}")
 
 
 def create_user(user_name: str, email: str, password: str):
@@ -59,8 +56,11 @@ def get_user_tasks(user_id: int):
     if not isinstance(user_id, int) or user_id <= 0:
         raise HTTPException(400, "Invalid user_id format")
 
-    tasks = db.query(Task).filter(Task.user_id == user_id).all()
-    return tasks
+    try:
+        tasks = db.query(Task).filter(Task.user_id == user_id).all()
+        return tasks
+    except Exception as e:
+        raise HTTPException(500, f"Something went wrong: {e}")
 
 
 def add_new_task(user_id: int, title: str, desc: str, due_date: str):
@@ -86,9 +86,9 @@ def add_new_task(user_id: int, title: str, desc: str, due_date: str):
         )
         db.add(new_task)
         db.commit()
-        return {"status": "success", "task_id": new_task.id}
+        return {"status": "success", "message": "new task created", "task_id": new_task.id}
 
-    except IntegrityError as e:
+    except IntegrityError:
         db.rollback()
         raise HTTPException(400, "Database integrity error")
 
@@ -126,17 +126,35 @@ def close_task(task_id: int):
     if not isinstance(task_id, int) or task_id <= 0:
         raise HTTPException(400, "Invalid task_id format")
 
-    task = db.query(Task).filter(Task.id == task_id).first()
-    task.is_completed = True
-    db.commit()
-    return {"status": "success closed", "task_id": task_id}
+    try:
+        task = db.query(Task).filter(Task.id == task_id).first()
+        task.is_completed = True
+        db.commit()
+        return {"status": "success closed", "task_id": task_id}
+
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(400, "Database integrity error")
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, f"Server error: {str(e)}")
 
 
 def delete_task(task_id: int):
     if not isinstance(task_id, int) or task_id <= 0:
         raise HTTPException(400, "Invalid task_id format")
 
-    task = db.query(Task).filter(Task.id == task_id).first()
-    db.delete(task)
-    db.commit()
-    return {"status": "success deleted", "task_id": task_id}
+    try:
+        task = db.query(Task).filter(Task.id == task_id).first()
+        db.delete(task)
+        db.commit()
+        return {"status": "success deleted", "task_id": task_id}
+
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(400, "Database integrity error")
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, f"Server error: {str(e)}")
